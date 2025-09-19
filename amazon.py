@@ -116,13 +116,24 @@ def extract_products_on_page(driver): # on_page -> 현재 페이지에서,  extr
 def extract_detail_images(driver):
     thumbs = driver.find_elements(By.CSS_SELECTOR, "#altImages img")
     urls = []
-    for t in thumbs:
-        src = (t.get_attribute("src") or "").strip()
-        if src:
+    try:
+        # altImages 블록이 나타날 때까지 대기
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "#altImages"))
+        )
+        thumbs = driver.find_elements(By.CSS_SELECTOR, "#altImages ul img")
+        for t in thumbs:
+            src = (t.get_attribute("src") or "").strip()
+            if not src:
+                continue
+            # 썸네일 suffix 제거 (_SS40_ 등 → 큰 이미지)
+            if "._" in src:
+                src = src.split("._")[0] + ".jpg"
             urls.append(src)
-    print(f"[INFO] 상세 썸네일 {len(urls)}개 수집")
+    except:
+        pass
     return urls
-
+    
 # 상세 페이지: 평점 정보 (평균, 총리뷰수, 별점 분포)
 def extract_ratings(driver):
     avg = None
@@ -131,10 +142,28 @@ def extract_ratings(driver):
 
     # 평균 별점
     try:
-        alt = driver.find_element(By.CSS_SELECTOR, "#acrPopover .a-icon-alt").text.strip()
-        avg = float(alt.split(" ")[0])  # "4.2 out of 5 stars" → 4.2
+        # 별점 숫자 직접 추출
+        avg_txt = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="acrPopover"]/span[1]/a/span'))
+        ).text.strip()
+        avg = float(avg_txt)
+    except:
+        try:
+            alt = driver.find_element(By.CSS_SELECTOR, "#acrPopover .a-icon-alt").text.strip()
+            avg = float(re.findall(r"[\d.]+", alt)[0])
+        except:
+            pass
+
+    try:
+        total_txt = driver.find_element(By.CSS_SELECTOR, "#acrCustomerReviewText").text.strip()
+        digits = re.findall(r"\d+", total_txt.replace(",", ""))
+        if digits:
+            total = int("".join(digits))
     except:
         pass
+
+    return {"avg": avg, "total": total, "histogram_percent": hist}
+
 
     # 총 리뷰 수
     try:
@@ -204,9 +233,9 @@ def _click_next(driver):
 def crawl_by_search(query, max_pages=10):
     driver = setup_driver()  # 웹드라이버 실행 (크롬 브라우저 띄우기)
     try:
-        search_url = perform_search(driver, query)  # 검색 실행
-        all_items = []  # 전체 결과 저장 리스트
-        page = 1  # 현재 페이지 번호
+        perform_search(driver, query)  # 검색 실행
+        all_items = []
+        page = 1
         while True:
             print(f"[INFO] {page}페이지 수집 중")
             items = extract_products_on_page(driver)
@@ -217,7 +246,7 @@ def crawl_by_search(query, max_pages=10):
                     continue
                 try:
                     driver.get(item["detail_url"])
-                    time.sleep(1.5)
+                    time.sleep(2.5)  # 상세 페이지 로딩 대기
 
                     detail_imgs = extract_detail_images(driver)
                     rating_info = extract_ratings(driver)
@@ -228,8 +257,8 @@ def crawl_by_search(query, max_pages=10):
                 except Exception as e:
                     print(f"[ERROR] 상세 수집 실패: {e}")
                 finally:
-                    # 다시 검색 결과로 돌아오기
-                    driver.get(search_url)
+                    # ✅ 상세페이지 본 후 원래 검색 결과 페이지로 돌아가기
+                    driver.back()
                     _wait(driver, By.CSS_SELECTOR, "div.s-main-slot", sec=12)
 
             all_items.extend(items)
