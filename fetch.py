@@ -2,6 +2,8 @@
 
 from selenium import webdriver  # 크롬 브라우저 자동으로 움직이기 위한 도구.
 from selenium.webdriver.chrome.options import Options  # 크롬 실행 때 다양한 설정(옵션) 넣기 위해 사용.
+from selenium.webdriver.chrome.options import Options
+import time
 
 # ✅ 크롬 브라우저 실행 때 필요한 설정들 넣고, 실행 준비 함수.
 def setup_driver():

@@ -13,10 +13,17 @@ def save_csv(items, path):
     # CSV 파일을 새로 만들고, UTF-8-SIG 인코딩으로 열어요. (윈도우 한글 엑셀 호환됨)
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         # CSV의 각 열 이름을 지정해요. 우리가 뽑아온 정보: 이미지 주소, 제목, 가격
-        w = csv.DictWriter(f, fieldnames=["image_url", "title", "price"])
+        fieldnames = ["title", "price", "image_url", "detail_images", "rating"]
+        w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()  # 첫 줄에 열 제목을 씁니다 (헤더)
         for row in items:  # 수집한 각 상품 정보를 하나씩 꺼내서
-            w.writerow(row)  # 한 줄씩 CSV로 저장합니다.
+            w.writerow({
+                "title": row.get("title"),
+                "price": row.get("price"),
+                "image_url": row.get("image_url"),
+                "detail_images": ";".join(row.get("detail_images", [])),
+                "rating": json.dumps(row.get("rating", {}), ensure_ascii=False)
+            })
 
 # 👉 이 함수는 상품 정보들을 JSON 파일로 저장하는 역할을 해요.
 def save_json(items, path):
